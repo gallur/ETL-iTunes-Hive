@@ -1,37 +1,82 @@
-## Welcome to GitHub Pages
+---
+layout: default
+---
+<h1> Web Scraping iTunes to Build an ETL pipeline using Apache Hive on AWS </h1>
 
-You can use the [editor on GitHub](https://github.com/gallur/ETL-iTunes-Hive/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
+<h2><b>Tech Stack: Python, Scrapy, AWS ElasticMapReduce, Apache Hive, HiveQL, xPATH, AWS S3. </b> </h2>
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+<h3> As a part of a project I was doing in my Big Data course at CMU, I faced a situation where there was no data to get insights from and I needed data about applications on iTunes application store. Often times in the industry, we face situations where we need to procure data and transform it so that it becomes usable easily. </h3>
 
-### Markdown
+<h3> I wanted to provide an easy for my team who are familiar with SQL, to access the newly procured data. </h3>
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+<h3> I began with using Scrapy, a python package along with xPATH to find HTML paths in any web page that I can pull data from. The main page of itunes showed me popular applications, but several details about an individual application was to be found only on the page dedicated to the application. Hence, I had to follow a multi level scraping system like the one shown in the system architecture diagram below: </h3>
 
-```markdown
-Syntax highlighted code block
+<img src = "https://1.bp.blogspot.com/-EcVO6yb9nbk/W-Wq_xtdI_I/AAAAAAAAAEY/-KV6Akf0DXsVuyJ0OzZVTAfHKDpuQJvtgCLcBGAs/s1600/systemhive.png" height = "400" width = "600">
 
-# Header 1
-## Header 2
-### Header 3
+<h3> The first level of web parser basically picks out the names of the top apps on iTunes and its corresponding URL which leads to the individual application page which has more information regarding the ratings of each application and the number of ratings. The first level of the parser looks as below: </h3>
 
-- Bulleted
-- List
+<!-- HTML generated using hilite.me --><div style="background: #ffffff; overflow:auto;width:auto;border:solid gray;border-width:.1em .1em .1em .8em;padding:.2em .6em;"><pre style="margin: 0; line-height: 125%"><span style="color: #008800; font-weight: bold">def</span> <span style="color: #0066BB; font-weight: bold">parse</span>(<span style="color: #007020">self</span>, response):
+        names <span style="color: #333333">=</span> response<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&#39;//ul/li&#39;</span>)
+        ans<span style="color: #333333">=</span>[]
+        count <span style="color: #333333">=</span> <span style="color: #0000DD; font-weight: bold">0</span>
+        <span style="color: #008800; font-weight: bold">for</span> name <span style="color: #000000; font-weight: bold">in</span> names:
+            count<span style="color: #333333">=</span>count<span style="color: #333333">+</span><span style="color: #0000DD; font-weight: bold">1</span>
+            item <span style="color: #333333">=</span> {}
+            item[<span style="background-color: #fff0f0">&#39;app_Name&#39;</span>] <span style="color: #333333">=</span> name<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&#39;h3/a/text()&#39;</span>)<span style="color: #333333">.</span>extract()
+            item[<span style="background-color: #fff0f0">&#39;category&#39;</span>] <span style="color: #333333">=</span> name<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&#39;h4/a/text()&#39;</span>)<span style="color: #333333">.</span>extract()
+            item[<span style="background-color: #fff0f0">&#39;appstore_link_url&#39;</span>] <span style="color: #333333">=</span> name<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&#39;h3/a/@href&#39;</span>)<span style="color: #333333">.</span>extract()
+            item[<span style="background-color: #fff0f0">&#39;img_src_url&#39;</span>] <span style="color: #333333">=</span> name<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&#39;a/img/@src&#39;</span>)<span style="color: #333333">.</span>extract()
+            <span style="color: #008800; font-weight: bold">if</span> <span style="color: #000000; font-weight: bold">not</span> item[<span style="background-color: #fff0f0">&#39;app_Name&#39;</span>]:
+                <span style="color: #008800; font-weight: bold">None</span>
+            <span style="color: #008800; font-weight: bold">else</span>:
+                req <span style="color: #333333">=</span> Request(item[<span style="background-color: #fff0f0">&#39;appstore_link_url&#39;</span>][<span style="color: #0000DD; font-weight: bold">0</span>], callback<span style="color: #333333">=</span><span style="color: #007020">self</span><span style="color: #333333">.</span>parse_2)
+                req<span style="color: #333333">.</span>meta[<span style="background-color: #fff0f0">&#39;foo&#39;</span>] <span style="color: #333333">=</span> item
+                ans<span style="color: #333333">.</span>append(req)
+        <span style="color: #008800; font-weight: bold">return</span> ans
+</pre></div>
 
-1. Numbered
-2. List
+<h3> While parsing any website that allows it, it is always a best practice to ensure that you are being kind on the web servers. A scraper can send out 1000+ requests in a second or two. Therefore, I introduced a delay in the parse by 0.5 seconds. This bascially meant that I would get the output in a delayed manned but the web server is not overloaded with requests. </h3>
 
-**Bold** and _Italic_ and `Code` text
+<h3>The second level of the parser, which is called from the first level of parser, goes to each individual page of the itunes store and pulls out the rating information for the apps. </h3>
 
-[Link](url) and ![Image](src)
-```
+<!-- HTML generated using hilite.me --><div style="background: #ffffff; overflow:auto;width:auto;border:solid gray;border-width:.1em .1em .1em .8em;padding:.2em .6em;"><pre style="margin: 0; line-height: 125%"><span style="color: #008800; font-weight: bold">def</span> <span style="color: #0066BB; font-weight: bold">parse_2</span>(<span style="color: #007020">self</span>, response):
+        <span style="color: #888888"># structure of the files handled by parse_2</span>
+        <span style="color: #888888"># /html/body/ul/li[@class=&quot;first&quot;]</span>
+        it <span style="color: #333333">=</span> response<span style="color: #333333">.</span>meta[<span style="background-color: #fff0f0">&#39;foo&#39;</span>]
+        first <span style="color: #333333">=</span> response<span style="color: #333333">.</span>xpath(<span style="background-color: #fff0f0">&quot;//ul[@class=&#39;product-header__list app-header__list&#39;][1]/li[@class=&#39;product-header__list__item app-header__list__item--user-rating&#39;]/ul[@class=&#39;inline-list inline-list--mobile-compact&#39;]/li[@class=&#39;inline-list__item&#39;]/figure/figcaption[@class=&#39;we-rating-count star-rating__count&#39;]/text()&quot;</span>)<span style="color: #333333">.</span>extract()[<span style="color: #0000DD; font-weight: bold">0</span>]<span style="color: #333333">.</span>split(<span style="background-color: #fff0f0">&quot;,&quot;</span>)
+        it[<span style="background-color: #fff0f0">&#39;Rating&#39;</span>] <span style="color: #333333">=</span> first[<span style="color: #0000DD; font-weight: bold">0</span>]
+        it[<span style="background-color: #fff0f0">&#39;No Of Ratings&#39;</span>] <span style="color: #333333">=</span> first[<span style="color: #0000DD; font-weight: bold">1</span>]
+        <span style="color: #008800; font-weight: bold">return</span> it
+</pre></div>
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+<h3> This creates a txt file that I store in a new bucket on AWS S3. </h3>
 
-### Jekyll Themes
+<h3>I created a new EMR cluster on AWS which comes with several applications such as Hive and Pig pre installed. I used the m4.large instances where I had one master node and 3 data nodes. Once I had the cluster up and running, I SSH into the master node using my linux VM running on Virtual Box. Here, I entered the Hive CLI and created a new table that will have the same headers as what my text file contains in terms of data. The HIVEQL query I used was as below: </h3>
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/gallur/ETL-iTunes-Hive/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+<!-- HTML generated using hilite.me --><div style="background: #ffffff; overflow:auto;width:auto;border:solid gray;border-width:.1em .1em .1em .8em;padding:.2em .6em;"><pre style="margin: 0; line-height: 125%"><span style="color: #008800; font-weight: bold">CREATE</span> <span style="color: #008800; font-weight: bold">EXTERNAL</span> <span style="color: #008800; font-weight: bold">TABLE</span> posts (appName STRING, category STRING, url STRING, img_src STRING, rating <span style="color: #007020">FLOAT</span>, No_rating STRING)
+<span style="color: #008800; font-weight: bold">ROW</span> FORMAT DELIMITED FIELDS TERMINATED <span style="color: #008800; font-weight: bold">BY</span> <span style="background-color: #fff0f0">&#39;,&#39;</span>
+<span style="color: #008800; font-weight: bold">LOCATION</span> <span style="background-color: #fff0f0">&#39;s3://hivetableitunes/&#39;</span>
+TBLPROPERTIES (<span style="color: #AA6600">&quot;skip.header.line.count&quot;</span><span style="color: #333333">=</span><span style="color: #AA6600">&quot;1&quot;</span>);
+</pre></div>
 
-### Support or Contact
+<h3> Once I had this table created, now my team could just ssh to the master node of the cluster and perform analytic operations on the data. This solved a big problem for my team as we wanted a simple interface to perform analytic operations but we did not even have any data. Some of the analytic query samples in HiveQL that we used were: </h3>
 
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+<h3>All applications with rating greater than 4 on itunes website </h3>
+
+<!-- HTML generated using hilite.me --><div style="background: #ffffff; overflow:auto;width:auto;border:solid gray;border-width:.1em .1em .1em .8em;padding:.2em .6em;"><pre style="margin: 0; line-height: 125%"><span style="color: #008800; font-weight: bold">SELECT</span> appName,rating 
+<span style="color: #008800; font-weight: bold">FROM</span> itunes
+<span style="color: #008800; font-weight: bold">WHERE</span> rating <span style="color: #333333">&gt;</span><span style="color: #0000DD; font-weight: bold">4</span>;
+</pre></div>
+
+<h3>Count of applications with rating greater than 4 on ituens website </h3>
+
+<!-- HTML generated using hilite.me --><div style="background: #ffffff; overflow:auto;width:auto;border:solid gray;border-width:.1em .1em .1em .8em;padding:.2em .6em;"><pre style="margin: 0; line-height: 125%"><span style="color: #008800; font-weight: bold">SELECT</span> <span style="color: #008800; font-weight: bold">count</span>(appName) 
+<span style="color: #008800; font-weight: bold">FROM</span> itunes
+<span style="color: #008800; font-weight: bold">WHERE</span> rating <span style="color: #333333">&gt;</span><span style="color: #0000DD; font-weight: bold">4</span>;
+</pre></div>
+
+<h3>These HiveQL queries run as MapReduce jobs in the background. Here is an example of that. This is the background MapReduce job that runs on Hive for the query where I wanted to know the total count of apps in the topapps section of itunes with rating about 4. </h3>
+
+<img src = "https://4.bp.blogspot.com/-wuh8ZwzasH8/W-Wu4oESPzI/AAAAAAAAAEw/VGomVGbOGMEHr4kM6x7CZCwWzpgaxFe6ACLcBGAs/s1600/HiveMR.png" height = "300" width = "700">
+
+
